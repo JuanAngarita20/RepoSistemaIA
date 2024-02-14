@@ -1,0 +1,10 @@
+Para los perfiles: Programador y EditorVideo
+Con presupuesto de: 8000000 el sistema recomendó: 
+CPU: Ryzen 9 3900XT
+El CPU recomendado no trae ventilador incluido, hay que adquirirlo por aparte
+Tarjeta Madre: GIGABYTE B450M DS3H
+Tarjeta Grafica: PC RX 6650 XT 8GB
+RAM: 32 GB-2500 MHz
+Almacenamiento: 1 SSD-1 TB
+Fuente Alimentacion: PSU de 680 W como minimo
+Gabinete: Mini-Tower 

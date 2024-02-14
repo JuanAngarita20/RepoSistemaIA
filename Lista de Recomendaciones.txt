@@ -1,0 +1,9 @@
+Para el perfil: Programador
+Con presupuesto de: 5300000 el sistema recomendó: 
+CPU: Ryzen 7 3700X
+Tarjeta Madre: ASUS TUF B550M-PLUS
+Tarjeta Grafica: MSI GTX 1650 4GB
+RAM: 32 GB-3600 MHz
+Almacenamiento: 1 HDD-500 GB
+Fuente Alimentacion: PSU de 575 W como minimo
+Gabinete: Mid-Tower 

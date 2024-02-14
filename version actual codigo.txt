@@ -1,0 +1,276 @@
+from genericpath import exists
+from math import prod
+from re import A
+from tkinter.tix import PopupMenu
+import numpy as np
+import copy 
+from tkinter import *
+from tkinter import ttk
+from PIL import ImageTk, Image
+
+import firebase_admin 
+from firebase_admin import credentials
+from firebase_admin import firestore
+
+
+cred = credentials.Certificate("serviceAccountKey.json")
+firebase_admin.initialize_app(cred)
+
+db=firestore.client()
+
+#                                                      2  4  6  8 12  16 2  4 12 16 24 32
+"""data = {'reglas': [1, 0, 1, 1, 0, 0, 1], 'contenido': [0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0]}
+db.collection('CPU').document("Ryzen 7 5700G").set(data)"""
+
+"""data = {'contenido_gamer_alto': [0.2,0.5,0.8,1,0.7,0.4,0.0,0.1,0.25,0.4,0.5,0.35,0.2,0,0.3,0.9,0.9,0.6,0.5,0.4,0.6,1,0.6,0.4,0.4,0.2,0,1], 'nombre': 'Gamer_Alto'}
+db.collection('perfiles').document("Gamer_Alto").set(data)"""
+
+#Perfiles
+perfiles=["Oficinista", "Editor Video", "Gamer_Bajo", "Gamer_Medio", "Gamer_Alto"]
+cpu_escogida="VACIO"
+usuario_reglas=[]
+usuario_contenido=[]
+
+root = Tk()
+root.geometry("1000x500")
+root.title("Proyecto Sistema Recomendador")
+
+perfil_label=Label(root, text="Introducir Perfiles: ")
+perfil_label.place(x=100,y=150)
+perfil1 = StringVar(root)
+perfil2 = StringVar(root)
+choices = {"Gamer","Oficinista", "Editor Video"}
+perfil1.set("Vacio")
+perfil2.set("Vacio")
+popmenu = OptionMenu(root,perfil1,*choices)
+popmenu2 = OptionMenu(root,perfil2,*choices)
+popmenu.place(x=100,y=200)
+popmenu2.place(x=100,y=250)
+
+presu_label=Label(root, text="Introducir Presupuesto: ")
+presu_label.place(x=100,y=50)
+presu_entry = Entry(root)
+presu_entry.place(x=100,y=100)
+
+presupuesto = 0
+
+
+def crear_tabla(nombre_tabla, lista_productos, lista_puntajes, parte_a_seleccionar):
+
+    print(parte_a_seleccionar)
+    top = Toplevel()
+    top.title(nombre_tabla)
+    top.geometry("500x500")
+    my_tabla = ttk.Treeview(top)
+    my_tabla['columns'] = ("Nombre", "Puntaje")
+    #formato Columna
+    my_tabla.column("#0", width=0, stretch=NO)
+    my_tabla.column("Nombre", anchor=W, width=200)
+    my_tabla.column("Puntaje", anchor=CENTER, width=100)
+    #Headers
+    my_tabla.heading("#0", text="")
+    my_tabla.heading("Nombre", text="Nombre", anchor=W)
+    my_tabla.heading("Puntaje", text="Puntaje", anchor=CENTER)
+    #Poner info
+    for i in range(len(lista_productos)):
+        my_tabla.insert(parent='', index='end', iid=i, text="", values=(lista_productos[i], lista_puntajes[i]))
+
+    my_tabla.place(x=0,y=0)
+
+
+
+def diferenciar_Gamer(reglas):
+    perfil_gamer_modificado=''
+    if(reglas[0]==1):
+        perfil_gamer_modificado="Gamer_Bajo"
+    elif(reglas[1]==1):
+        perfil_gamer_modificado="Gamer_Medio"
+    elif(reglas[2]==1):
+       perfil_gamer_modificado="Gamer_Alto"
+    
+    return perfil_gamer_modificado
+
+
+def agregar_reglas_presupuesto(lista_reglas):
+    if(presupuesto > 2500000 and presupuesto < 3500000):
+        bajo = [1,0,0]
+        for i in range(len(bajo)):
+            lista_reglas.append(bajo[i])
+    elif(presupuesto > 3500001 and presupuesto < 7000000):
+        medio = [0,1,0]
+        for i in range(len(medio)):
+            lista_reglas.append(medio[i])
+    elif(presupuesto > 7000001):
+        alto = [0,0,1]
+        for i in range(len(alto)):
+            lista_reglas.append(alto[i])
+
+    
+def filtrar_productos(reglas_producto,reglas_usuario, condicion):
+    filtro = True
+    if(condicion==0): #no importa si es 0 o 1, debe ser igual
+        if(reglas_producto == reglas_usuario):
+            filtro = True
+        else:
+            filtro= False
+    
+    if(condicion==1): #las 2 condiciones deben ser 0
+        if(reglas_producto == 0 and reglas_usuario == 0):
+            filtro = True
+        else:
+            filtro= False
+    
+    if(condicion==2): #las 2 condiciones deben ser 1
+        if(reglas_producto == 1 and reglas_usuario == 1):
+            filtro = True
+        else:
+            filtro= False
+
+    return filtro
+
+
+def establecer_vector_usuario(p1,p2):
+
+    #cpu 
+    
+    #por ahora las unicas reglas de usuario sera el presupuesto, las reglas solo se usaran para comprobar compatibilidad entre partes
+    agregar_reglas_presupuesto(usuario_reglas) 
+    print("Vector de reglas de Usuario: ")
+    print(usuario_reglas)
+
+    if(p1=='Gamer'):
+        p1=diferenciar_Gamer(usuario_reglas)
+    elif(p2=='Gamer'):
+        p2=diferenciar_Gamer(usuario_reglas)
+
+    #contenido_usuario
+    if(p1 in perfiles):
+        all_perfiles = db.collection("perfiles").where("nombre","==",p1).get()
+        for perfil in all_perfiles:
+            perfil_dicc = perfil.to_dict()
+            query_perfil_contendio="contenido_"+ p1.lower()
+            perfil_contenido = perfil_dicc [query_perfil_contendio]
+            #print("Vector de contenido Usuario")
+            #print(perfil_contenido)
+
+    if(p2 in perfiles):
+        all_perfiles = db.collection("perfiles").where("nombre","==",p2).get()
+        for perfil in all_perfiles:
+            perfil_dicc = perfil.to_dict()
+            query_perfil_contendio="contenido_"+ p2.lower()
+            perfil_contenido2 = perfil_dicc [query_perfil_contendio]
+            #print("Vector de contenido Usuario")
+            #print(perfil_contenido2)
+    
+    if(p1 in perfiles and not(p2 in perfiles)):
+        for i in range(len(perfil_contenido)):
+            usuario_contenido.append(perfil_contenido[i])
+        print("Vector de contenido Usuario")
+        print(usuario_contenido)
+    elif(p2 in perfiles and not(p1 in perfiles)):
+        for i in range(len(perfil_contenido2)):
+            usuario_contenido.append(perfil_contenido2[i])
+        print("Vector de contenido Usuario")
+        print(usuario_contenido)
+    else:
+        for i in range(len(perfil_contenido)):
+            usuario_contenido.append((float(perfil_contenido[i])+float(perfil_contenido2[i]))/2)
+        print("Vector de contenido Usuario")
+        print(usuario_contenido)
+
+
+    #contenido_cpu (Metodo Filtrado)
+    all_cpu = db.collection("CPU").get()
+    lista_cpu_filtro1=[]
+    lista_contenidos_cpu=[]
+
+    for cpu in all_cpu:
+        #print(cpu.to_dict())
+        cpu_dicc = cpu.to_dict()
+        #separar reglas y contenido
+        cpu_reglas = cpu_dicc["reglas"]
+        cpu_nombre = cpu_dicc["nombre"]
+        cpu_contenido = cpu_dicc["contenido"]
+
+        for i in range(0,3): #Adquirir gama de productos (bajo, medio, alto)
+            if(usuario_reglas[i]==1):
+                indice_gama = i
+        
+        lista_cpu_filtro1.append(cpu_nombre)
+        lista_contenidos_cpu.append(cpu_contenido)
+
+        """#filtro1 - Precio    
+        filtro1 = filtrar_productos(cpu_reglas[indice_gama+5],usuario_reglas[indice_gama],2) # Buscar productos que son de la gama correcta
+        if(filtro1):
+            lista_cpu_filtro1.append(cpu_nombre)
+            lista_contenidos_cpu.append(cpu_contenido)"""
+
+    producto_punto_vectores=[]
+    for i in range(len(lista_contenidos_cpu)):
+        sumatoria=0
+        for j in range(len(lista_contenidos_cpu[i])):
+            sumatoria = sumatoria + (lista_contenidos_cpu[i][j] * usuario_contenido[j])
+        producto_punto_vectores.append(sumatoria)
+
+    crear_tabla("Lista CPU",lista_cpu_filtro1,producto_punto_vectores,cpu_escogida)
+    #cpu_names_label = Label(top, text=lista_cpu_filtro1[0])
+    #cpu_names_label.place(x=10,y=10)
+
+
+    print(lista_cpu_filtro1)
+    print(lista_contenidos_cpu)
+    print(producto_punto_vectores)
+
+
+
+
+def introducir_presupuesto():
+    global presupuesto 
+    presupuesto = int(presu_entry.get())
+    if(presupuesto<2500000):
+        presu_label.config(text="Presupuesto muy bajo, se recomienda que sea mayor a 2.5 Milliones")
+    else:
+        button.config(state=DISABLED)
+        button2.config(state=ACTIVE)
+        presu_label.config(text="Presupuesto valido")
+        presu_entry.config(state=DISABLED)
+        
+
+def introducir_perfiles():
+    if(perfil1.get()=="Vacio" and perfil2.get()=="Vacio"):
+        perfil_label.config(text="Introduzca al menos un perfil")
+    else:
+        button2.config(state=DISABLED)
+        establecer_vector_usuario(perfil1.get(),perfil2.get())
+
+
+    
+button = Button(root,text="Introducir", command=introducir_presupuesto)
+button.place(x=350,y=100)
+
+button2 = Button(root,text="Continuar", command=introducir_perfiles, state=DISABLED)
+button2.place(x=350,y=250)
+
+root.mainloop()
+
+
+
+
+
+
+"""if resultado.exists:
+    #print(resultado.to_dict())
+    #copiar localmente info de base de datos en form da deccionario
+    cpu_dicc = resultado.to_dict()
+    #separar reglas y contenido
+    cpu_reglas = cpu_dicc["reglas"]
+    cpu_contenido = cpu_dicc["contenido"]
+    print("Reglas de " + str(cpu_list[0]) + ": " + str(cpu_reglas))
+    print("Contenido de " + str(cpu_list[0]) + ": " + str(cpu_contenido))
+    if(cpu_reglas[0]==1):
+        print(str(cpu_list[0]) + " es un CPU de AMD")
+
+else:
+    print("cpu no encontrado")"""
+
+
